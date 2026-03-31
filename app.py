@@ -6,11 +6,20 @@ hit macro targets, and get AI-style nutrition insights.
 
 Run with:
     pip install -r requirements.txt
-    streamlit run app.py
+    python -m streamlit run app.py
 """
 
 import streamlit as st
 import math
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0.  SESSION STATE INIT (must come before anything that reads state)
+# ─────────────────────────────────────────────────────────────────────────────
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "username" not in st.session_state:
+    st.session_state["username"] = ""
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1.  PAGE CONFIG & CUSTOM CSS
@@ -237,9 +246,222 @@ div[data-baseweb="select"] {
     border-top: 1px solid var(--border);
     margin: 1.5rem 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGIN PAGE STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Login wrapper — centres the card on the viewport */
+.login-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    padding: 2rem 1rem;
+}
+
+/* Login card */
+.login-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.75rem 2.5rem 2.25rem 2.5rem;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 0 60px rgba(0, 255, 136, 0.04),
+                0 0 120px rgba(0, 255, 136, 0.02);
+}
+
+/* Glowing logo on login */
+.login-logo {
+    text-align: center;
+    font-size: 2.8rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin-bottom: 0.2rem;
+}
+.login-logo .accent {
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(0, 255, 136, 0.35);
+}
+.login-tagline {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+}
+
+/* Style the Streamlit text inputs inside login */
+.login-form .stTextInput > div > div > input {
+    background: #0A0A0A !important;
+    border: 1px solid #2A2A2A !important;
+    border-radius: 10px !important;
+    color: #FFFFFF !important;
+    font-family: 'Outfit', sans-serif !important;
+    padding: 0.65rem 0.9rem !important;
+    font-size: 0.95rem !important;
+}
+.login-form .stTextInput > div > div > input:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.15) !important;
+}
+.login-form .stTextInput label {
+    color: var(--text-secondary) !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.85rem !important;
+}
+
+/* Login button */
+.login-form .stButton > button {
+    width: 100%;
+    background: linear-gradient(135deg, #00FF88 0%, #00CC6A 100%) !important;
+    color: #000000 !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    padding: 0.7rem 1.5rem !important;
+    border: none !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    letter-spacing: 0.02em;
+    margin-top: 0.5rem;
+    transition: opacity 0.2s ease, transform 0.15s ease !important;
+}
+.login-form .stButton > button:hover {
+    opacity: 0.9 !important;
+    transform: translateY(-1px) !important;
+}
+.login-form .stButton > button:active {
+    transform: translateY(0px) !important;
+}
+
+/* Logout button in sidebar */
+.logout-btn .stButton > button {
+    width: 100%;
+    background: transparent !important;
+    color: var(--danger) !important;
+    border: 1px solid #3A1520 !important;
+    border-radius: 10px !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    padding: 0.45rem 1rem !important;
+    transition: background 0.2s ease !important;
+}
+.logout-btn .stButton > button:hover {
+    background: #1A0A10 !important;
+}
+
+/* User greeting badge in sidebar */
+.user-greeting {
+    background: var(--accent-dark);
+    border: 1px solid #1B5E3C;
+    border-radius: 12px;
+    padding: 0.7rem 1rem;
+    text-align: center;
+    margin-bottom: 0.75rem;
+}
+.user-greeting .greeting-name {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1rem;
+}
+.user-greeting .greeting-sub {
+    color: #7BCEA0;
+    font-size: 0.75rem;
+    margin-top: 0.15rem;
+}
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1b.  LOGIN PAGE
+# ─────────────────────────────────────────────────────────────────────────────
+def show_login_page():
+    """Render the full-screen login page and handle auth logic."""
+
+    # Hide sidebar on login screen
+    st.markdown(
+        '<style>[data-testid="stSidebar"]{display:none !important;}'
+        '[data-testid="stSidebarCollapsedControl"]{display:none !important;}</style>',
+        unsafe_allow_html=True,
+    )
+
+    # Centred login layout using columns
+    _left, center, _right = st.columns([1, 1.2, 1])
+
+    with center:
+        # Spacer for vertical centering
+        st.markdown('<div style="margin-top:12vh;"></div>', unsafe_allow_html=True)
+
+        # Logo & tagline
+        st.markdown(
+            '<div class="login-logo">⚡ <span class="accent">Campus</span>Fuel</div>'
+            '<div class="login-tagline">Your campus nutrition co-pilot</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Card wrapper open
+        st.markdown('<div class="cf-card login-form" style="border-radius:20px;'
+                    'padding:2.25rem 2rem;box-shadow:0 0 60px rgba(0,255,136,0.04),'
+                    '0 0 120px rgba(0,255,136,0.02);">', unsafe_allow_html=True)
+
+        st.markdown(
+            '<p style="text-align:center;color:#B0B0B0;font-size:0.92rem;'
+            'margin-bottom:1.25rem;font-weight:500;">Sign in to continue</p>',
+            unsafe_allow_html=True,
+        )
+
+        # Input fields
+        username = st.text_input("Username", placeholder="Enter your username", key="login_user")
+        password = st.text_input("Password", placeholder="Enter your password",
+                                 type="password", key="login_pass")
+
+        # Login button
+        if st.button("Sign In", use_container_width=True, key="login_btn"):
+            if username.strip() and password.strip():
+                # ✅ Both fields filled → login success
+                st.session_state["logged_in"] = True
+                st.session_state["username"] = username.strip()
+                st.rerun()
+            else:
+                # ❌ Missing fields → show error
+                st.markdown(
+                    '<div style="background:#1A0A10;border:1px solid #3A1520;border-radius:10px;'
+                    'padding:0.65rem 1rem;margin-top:0.75rem;text-align:center;'
+                    'color:#FF4D6A;font-size:0.88rem;font-weight:500;">'
+                    '⚠️ Please enter both username and password'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+
+        # Card wrapper close
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Footer hint
+        st.markdown(
+            '<div style="text-align:center;margin-top:1.5rem;color:#333;font-size:0.72rem;">'
+            'No account needed for MVP — just enter any credentials'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1c.  AUTH GATE — Show login OR the full app
+# ─────────────────────────────────────────────────────────────────────────────
+if not st.session_state["logged_in"]:
+    show_login_page()
+    st.stop()  # ← prevents ANY code below from executing
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# EVERYTHING BELOW RUNS ONLY WHEN THE USER IS LOGGED IN
+# ═════════════════════════════════════════════════════════════════════════════
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -372,7 +594,7 @@ def progress_bar_html(consumed: float, target: float, color: str = "#00FF88") ->
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6.  SIDEBAR — USER PROFILE
+# 6.  SIDEBAR — USER PROFILE + LOGOUT
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown(
@@ -386,6 +608,16 @@ with st.sidebar:
     )
     st.markdown('<hr class="cf-divider">', unsafe_allow_html=True)
 
+    # ── Logged-in user greeting ─────────────────────────────────────────────
+    display_name = st.session_state["username"]
+    st.markdown(
+        f'<div class="user-greeting">'
+        f'  <div class="greeting-name">👋 Hey, {display_name}!</div>'
+        f'  <div class="greeting-sub">Logged in · Ready to fuel up</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
     st.markdown("##### 👤 Your Profile")
     weight = st.number_input("Body weight (lbs)", min_value=80, max_value=400, value=160, step=5)
     goal = st.selectbox("Goal", ["Lose weight", "Maintain weight", "Gain muscle"])
@@ -393,8 +625,17 @@ with st.sidebar:
     day_type = st.selectbox("Today's activity", ["Rest day", "Gym / lifting", "Running / cardio"])
 
     st.markdown('<hr class="cf-divider">', unsafe_allow_html=True)
+
+    # ── Logout button ───────────────────────────────────────────────────────
+    st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
+    if st.button("🚪 Log Out", use_container_width=True, key="logout_btn"):
+        st.session_state["logged_in"] = False
+        st.session_state["username"] = ""
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown(
-        '<p style="color:#444;font-size:0.72rem;text-align:center;">v1.0 MVP · Built for students</p>',
+        '<p style="color:#444;font-size:0.72rem;text-align:center;margin-top:0.5rem;">v1.0 MVP · Built for students</p>',
         unsafe_allow_html=True,
     )
 
